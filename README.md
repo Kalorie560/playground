@@ -126,6 +126,46 @@ All hyperparameters and settings are managed through `config.yaml`. Key sections
 
 The solution integrates with ClearML for comprehensive experiment tracking:
 
+### Quick Setup
+
+To set up ClearML experiment tracking, run the interactive setup helper:
+
+```bash
+python setup_clearml.py
+```
+
+This script will guide you through the configuration process and test your connection.
+
+### Manual Setup Options
+
+#### Option 1: Using clearml-init (Recommended)
+1. Create a free account at [https://app.clear.ml/](https://app.clear.ml/)
+2. Go to Settings > Workspace Configuration
+3. Copy the configuration
+4. Run `clearml-init` and paste the configuration
+
+#### Option 2: Environment Variables
+Add to your shell profile (`.bashrc`, `.zshrc`, etc.):
+```bash
+export CLEARML_WEB_HOST=https://app.clear.ml
+export CLEARML_API_HOST=https://api.clear.ml
+export CLEARML_FILES_HOST=https://files.clear.ml
+export CLEARML_API_ACCESS_KEY=your_access_key
+export CLEARML_API_SECRET_KEY=your_secret_key
+```
+
+#### Option 3: Config File
+Update `config.yaml` with your credentials:
+```yaml
+clearml:
+  api:
+    web_server: "https://app.clear.ml"
+    api_server: "https://api.clear.ml"
+    files_server: "https://files.clear.ml"
+    access_key: "your_access_key"
+    secret_key: "your_secret_key"
+```
+
 ### Logged Metrics
 - Training and validation loss per epoch
 - Validation accuracy, precision, recall, F1-score, AUC
@@ -268,8 +308,9 @@ PassengerId,Transported
 - Set device to 'cpu' in hardware configuration
 
 **ClearML Connection Issues**:
+- Run `python setup_clearml.py` for interactive setup assistance
 - Check ClearML server configuration
-- Ensure proper API credentials
+- Ensure proper API credentials (see ClearML Setup section below)
 - Training will continue without ClearML if connection fails
 
 **Data Loading Errors**:
