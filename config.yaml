@@ -1,0 +1,71 @@
+# Configuration file for Spaceship Titanic Deep Learning Solution
+# All hyperparameters and settings are defined here for easy experimentation
+
+# Data Configuration
+data:
+  train_path: "train.csv"
+  test_path: "test.csv"
+  validation_split: 0.2
+  random_seed: 42
+
+# Model Architecture
+model:
+  hidden_sizes: [256, 128, 64]
+  dropout_rates: [0.3, 0.4, 0.5]
+  activation: "relu"  # Options: relu, leaky_relu, elu, gelu, tanh, sigmoid
+  use_batch_norm: true
+  output_size: 1
+
+# Training Configuration
+training:
+  batch_size: 64
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  optimizer: "adam"  # Options: adam, sgd, rmsprop
+  
+  # Learning Rate Scheduler
+  scheduler:
+    type: "step"  # Options: step, cosine, exponential, plateau
+    step_size: 20
+    gamma: 0.5
+    patience: 10  # For plateau scheduler
+    factor: 0.5   # For plateau scheduler
+  
+  # Early Stopping
+  early_stopping:
+    patience: 15
+    min_delta: 0.0001
+    restore_best_weights: true
+
+# ClearML Configuration
+clearml:
+  project_name: "Spaceship_Titanic"
+  task_name: "Neural_Network_Classifier"
+  tags: ["deep_learning", "classification", "kaggle"]
+  auto_connect_frameworks: true
+  auto_connect_arg_parser: true
+
+# Evaluation Metrics
+evaluation:
+  metrics: ["accuracy", "precision", "recall", "f1", "auc"]
+  print_confusion_matrix: true
+
+# Output Configuration
+output:
+  model_save_path: "best_model.pth"
+  submission_file: "submission.csv"
+  log_level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+  save_predictions: true
+  
+# Hardware Configuration
+hardware:
+  device: "auto"  # Options: auto, cpu, cuda, mps
+  num_workers: 4  # For data loading
+  pin_memory: true
+
+# Reproducibility
+reproducibility:
+  seed: 42
+  deterministic: true
+  benchmark: false
