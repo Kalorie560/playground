@@ -68,7 +68,7 @@ class SpaceshipPredictor:
             raise FileNotFoundError(f"Model file {self.model_path} not found")
         
         # Load checkpoint
-        checkpoint = torch.load(self.model_path, map_location=self.device)
+        checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
         
         # Get model configuration
         if 'config' in checkpoint:
@@ -122,7 +122,7 @@ class SpaceshipPredictor:
             self.model = create_model(input_size, self.config)
             
             # Load model weights
-            checkpoint = torch.load(self.model_path, map_location=self.device)
+            checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.model.to(self.device)
             self.model.eval()
