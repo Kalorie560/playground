@@ -340,7 +340,13 @@ class SpaceshipTrainer:
         
         if self.clearml_logger:
             for key, value in model_info.items():
-                self.clearml_logger.report_single_value(f"model/{key}", value)
+                # Handle list values by converting to string or reporting as text
+                if isinstance(value, list):
+                    # Convert list to string for logging
+                    self.clearml_logger.report_text(f"model/{key}", str(value))
+                else:
+                    # Report scalar values normally
+                    self.clearml_logger.report_single_value(f"model/{key}", value)
     
     def train_epoch(self, train_loader: DataLoader) -> float:
         """Train for one epoch."""
