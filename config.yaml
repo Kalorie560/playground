@@ -45,6 +45,17 @@ clearml:
   tags: ["deep_learning", "classification", "kaggle"]
   auto_connect_frameworks: true
   auto_connect_arg_parser: true
+  
+  # Account Configuration
+  # Replace with your actual ClearML credentials
+  # Get these from: https://app.clear.ml/settings/workspace-configuration
+  api:
+    web_server: "https://app.clear.ml"
+    api_server: "https://api.clear.ml"
+    files_server: "https://files.clear.ml"
+    # Uncomment and add your credentials:
+    # access_key: "YOUR_ACCESS_KEY_HERE"
+    # secret_key: "YOUR_SECRET_KEY_HERE"
 
 # Evaluation Metrics
 evaluation:
