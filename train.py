@@ -110,6 +110,14 @@ class SpaceshipTrainer:
         
         try:
             clearml_config = self.config['clearml']
+            
+            # Check if ClearML is configured
+            if not self._check_clearml_configuration(clearml_config):
+                return
+            
+            # Configure ClearML API settings if provided in config
+            self._configure_clearml_api(clearml_config)
+            
             self.task = Task.init(
                 project_name=clearml_config['project_name'],
                 task_name=clearml_config['task_name'],
@@ -129,6 +137,80 @@ class SpaceshipTrainer:
             logger.warning(f"ClearML setup failed: {e}. Continuing without experiment tracking.")
             self.task = None
             self.clearml_logger = None
+    
+    def _check_clearml_configuration(self, clearml_config: Dict[str, Any]) -> bool:
+        """Check if ClearML is properly configured."""
+        import os
+        
+        # Check for environment variables first
+        env_vars = ['CLEARML_WEB_HOST', 'CLEARML_API_HOST', 'CLEARML_FILES_HOST', 
+                   'CLEARML_API_ACCESS_KEY', 'CLEARML_API_SECRET_KEY']
+        
+        has_env_config = any(os.getenv(var) for var in env_vars)
+        
+        # Check for config file credentials
+        api_config = clearml_config.get('api', {})
+        has_file_config = (
+            api_config.get('access_key') and 
+            api_config.get('secret_key') and
+            api_config.get('web_server') and
+            api_config.get('api_server')
+        )
+        
+        # Check if clearml.conf exists
+        clearml_conf_paths = [
+            os.path.expanduser('~/clearml.conf'),
+            '/opt/clearml/clearml.conf',
+            'clearml.conf'
+        ]
+        has_conf_file = any(os.path.exists(path) for path in clearml_conf_paths)
+        
+        if has_env_config or has_file_config or has_conf_file:
+            return True
+        
+        # If no configuration found, provide helpful setup message
+        logger.warning(
+            "ClearML is not configured on this machine!\n"
+            "To get started with ClearML, you have several options:\n\n"
+            "1. Create a free account at https://app.clear.ml/ and run 'clearml-init'\n"
+            "2. Set environment variables:\n"
+            "   export CLEARML_WEB_HOST=https://app.clear.ml\n"
+            "   export CLEARML_API_HOST=https://api.clear.ml\n"
+            "   export CLEARML_FILES_HOST=https://files.clear.ml\n"
+            "   export CLEARML_API_ACCESS_KEY=your_access_key\n"
+            "   export CLEARML_API_SECRET_KEY=your_secret_key\n"
+            "3. Update config.yaml with your credentials:\n"
+            "   api:\n"
+            "     access_key: 'your_access_key'\n"
+            "     secret_key: 'your_secret_key'\n"
+            "4. Setup your own clearml-server: https://clear.ml/docs\n\n"
+            "Continuing without experiment tracking."
+        )
+        return False
+    
+    def _configure_clearml_api(self, clearml_config: Dict[str, Any]):
+        """Configure ClearML API settings if provided in config."""
+        api_config = clearml_config.get('api', {})
+        
+        if not api_config:
+            return
+        
+        import os
+        from clearml.backend_api.session import Session
+        
+        # Set environment variables for ClearML configuration
+        if api_config.get('web_server'):
+            os.environ['CLEARML_WEB_HOST'] = api_config['web_server']
+        if api_config.get('api_server'):
+            os.environ['CLEARML_API_HOST'] = api_config['api_server']
+        if api_config.get('files_server'):
+            os.environ['CLEARML_FILES_HOST'] = api_config['files_server']
+        if api_config.get('access_key'):
+            os.environ['CLEARML_API_ACCESS_KEY'] = api_config['access_key']
+        if api_config.get('secret_key'):
+            os.environ['CLEARML_API_SECRET_KEY'] = api_config['secret_key']
+        
+        logger.info("ClearML API configuration applied from config file")
     
     def prepare_data(self) -> Dict[str, torch.Tensor]:
         """Prepare data for training."""
