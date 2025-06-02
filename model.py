@@ -15,31 +15,36 @@ logger = logging.getLogger(__name__)
 
 class SpaceshipClassifier(nn.Module):
     """
-    Neural network classifier for Spaceship Titanic competition.
+    Enhanced neural network classifier for Spaceship Titanic competition.
     
     Features:
-    - Configurable hidden layers
-    - Dropout regularization
-    - Batch normalization
+    - Configurable hidden layers with residual connections
+    - Advanced dropout regularization
+    - Batch normalization with optional layer normalization
     - Flexible activation functions
+    - Label smoothing capability
     """
     
     def __init__(self, 
                  input_size: int,
-                 hidden_sizes: List[int] = [256, 128, 64],
-                 dropout_rates: List[float] = [0.3, 0.4, 0.5],
+                 hidden_sizes: List[int] = [512, 256, 128, 64],
+                 dropout_rates: List[float] = [0.2, 0.3, 0.4, 0.5],
                  activation: str = 'relu',
                  use_batch_norm: bool = True,
+                 use_layer_norm: bool = False,
+                 use_residual: bool = True,
                  output_size: int = 1):
         """
-        Initialize the neural network.
+        Initialize the enhanced neural network.
         
         Args:
             input_size: Number of input features
             hidden_sizes: List of hidden layer sizes
             dropout_rates: List of dropout rates for each layer
-            activation: Activation function ('relu', 'leaky_relu', 'elu', 'gelu')
+            activation: Activation function ('relu', 'leaky_relu', 'elu', 'gelu', 'swish')
             use_batch_norm: Whether to use batch normalization
+            use_layer_norm: Whether to use layer normalization
+            use_residual: Whether to use residual connections
             output_size: Number of output classes (1 for binary classification)
         """
         super(SpaceshipClassifier, self).__init__()
@@ -49,6 +54,8 @@ class SpaceshipClassifier(nn.Module):
         self.dropout_rates = dropout_rates
         self.activation = activation
         self.use_batch_norm = use_batch_norm
+        self.use_layer_norm = use_layer_norm
+        self.use_residual = use_residual
         self.output_size = output_size
         
         # Ensure dropout rates match hidden layers
@@ -60,9 +67,11 @@ class SpaceshipClassifier(nn.Module):
         # Build network layers
         self.layers = nn.ModuleList()
         self.batch_norms = nn.ModuleList()
+        self.layer_norms = nn.ModuleList()
         self.dropouts = nn.ModuleList()
+        self.residual_projections = nn.ModuleList()
         
-        # Input layer
+        # Input projection for first residual connection
         prev_size = input_size
         
         # Hidden layers
@@ -70,33 +79,62 @@ class SpaceshipClassifier(nn.Module):
             # Linear layer
             self.layers.append(nn.Linear(prev_size, hidden_size))
             
-            # Batch normalization
+            # Normalization layers
             if use_batch_norm:
                 self.batch_norms.append(nn.BatchNorm1d(hidden_size))
             else:
                 self.batch_norms.append(nn.Identity())
             
-            # Dropout
+            if use_layer_norm:
+                self.layer_norms.append(nn.LayerNorm(hidden_size))
+            else:
+                self.layer_norms.append(nn.Identity())
+            
+            # Dropout with different rates for different layers
             self.dropouts.append(nn.Dropout(dropout_rate))
+            
+            # Residual projection if sizes don't match
+            if use_residual and prev_size != hidden_size:
+                self.residual_projections.append(nn.Linear(prev_size, hidden_size))
+            else:
+                self.residual_projections.append(nn.Identity())
             
             prev_size = hidden_size
         
-        # Output layer
-        self.output_layer = nn.Linear(prev_size, output_size)
+        # Output layer with additional regularization
+        self.output_layer = nn.Sequential(
+            nn.Dropout(0.3),
+            nn.Linear(prev_size, output_size)
+        )
         
         # Initialize weights
         self._initialize_weights()
     
     def _initialize_weights(self):
-        """Initialize network weights using Xavier/Glorot initialization."""
+        """Initialize network weights using He initialization for ReLU-like activations."""
         for layer in self.layers:
             if isinstance(layer, nn.Linear):
-                nn.init.xavier_normal_(layer.weight)
-                nn.init.constant_(layer.bias, 0)
+                if self.activation in ['relu', 'leaky_relu', 'elu']:
+                    nn.init.kaiming_normal_(layer.weight, mode='fan_in', nonlinearity='relu')
+                else:
+                    nn.init.xavier_normal_(layer.weight)
+                nn.init.constant_(layer.bias, 0.01)  # Small positive bias
+        
+        # Initialize residual projections
+        for projection in self.residual_projections:
+            if isinstance(projection, nn.Linear):
+                nn.init.xavier_normal_(projection.weight)
+                nn.init.constant_(projection.bias, 0)
         
         # Initialize output layer
-        nn.init.xavier_normal_(self.output_layer.weight)
-        nn.init.constant_(self.output_layer.bias, 0)
+        for module in self.output_layer:
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                nn.init.constant_(module.bias, 0)
+    
+    def _swish(self, x):
+        """Swish activation function."""
+        return x * torch.sigmoid(x)
     
     def _get_activation(self):
         """Get activation function based on string name."""
@@ -105,6 +143,7 @@ class SpaceshipClassifier(nn.Module):
             'leaky_relu': F.leaky_relu,
             'elu': F.elu,
             'gelu': F.gelu,
+            'swish': self._swish,
             'tanh': torch.tanh,
             'sigmoid': torch.sigmoid
         }
@@ -112,7 +151,7 @@ class SpaceshipClassifier(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass through the network.
+        Enhanced forward pass with residual connections.
         
         Args:
             x: Input tensor of shape (batch_size, input_size)
@@ -122,14 +161,31 @@ class SpaceshipClassifier(nn.Module):
         """
         activation_fn = self._get_activation()
         
-        # Forward through hidden layers
-        for i, (layer, batch_norm, dropout) in enumerate(zip(self.layers, self.batch_norms, self.dropouts)):
+        # Forward through hidden layers with residual connections
+        for i, (layer, batch_norm, layer_norm, dropout, residual_proj) in enumerate(
+            zip(self.layers, self.batch_norms, self.layer_norms, self.dropouts, self.residual_projections)
+        ):
+            # Store input for residual connection
+            residual = x
+            
+            # Forward through layer
             x = layer(x)
             
+            # Apply normalization
             if self.use_batch_norm:
                 x = batch_norm(x)
+            if self.use_layer_norm:
+                x = layer_norm(x)
             
+            # Apply activation
             x = activation_fn(x)
+            
+            # Add residual connection
+            if self.use_residual:
+                residual_transformed = residual_proj(residual)
+                x = x + residual_transformed
+            
+            # Apply dropout
             x = dropout(x)
         
         # Output layer
@@ -138,7 +194,7 @@ class SpaceshipClassifier(nn.Module):
         return x
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Get model architecture information."""
+        """Get enhanced model architecture information."""
         total_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         
@@ -150,6 +206,8 @@ class SpaceshipClassifier(nn.Module):
             'dropout_rates': self.dropout_rates,
             'activation': self.activation,
             'use_batch_norm': self.use_batch_norm,
+            'use_layer_norm': self.use_layer_norm,
+            'use_residual': self.use_residual,
             'output_size': self.output_size
         }
 
@@ -245,23 +303,25 @@ class ModelUtils:
 
 def create_model(input_size: int, config: Dict[str, Any]) -> SpaceshipClassifier:
     """
-    Create model from configuration.
+    Create enhanced model from configuration.
     
     Args:
         input_size: Number of input features
         config: Configuration dictionary
         
     Returns:
-        Initialized model
+        Initialized enhanced model
     """
     model_config = config.get('model', {})
     
     model = SpaceshipClassifier(
         input_size=input_size,
-        hidden_sizes=model_config.get('hidden_sizes', [256, 128, 64]),
-        dropout_rates=model_config.get('dropout_rates', [0.3, 0.4, 0.5]),
-        activation=model_config.get('activation', 'relu'),
+        hidden_sizes=model_config.get('hidden_sizes', [512, 256, 128, 64]),
+        dropout_rates=model_config.get('dropout_rates', [0.2, 0.3, 0.4, 0.5]),
+        activation=model_config.get('activation', 'swish'),
         use_batch_norm=model_config.get('use_batch_norm', True),
+        use_layer_norm=model_config.get('use_layer_norm', False),
+        use_residual=model_config.get('use_residual', True),
         output_size=model_config.get('output_size', 1)
     )
     

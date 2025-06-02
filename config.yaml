@@ -8,34 +8,48 @@ data:
   validation_split: 0.2
   random_seed: 42
 
-# Model Architecture
+# Enhanced Model Architecture
 model:
-  hidden_sizes: [256, 128, 64]
-  dropout_rates: [0.3, 0.4, 0.5]
-  activation: "relu"  # Options: relu, leaky_relu, elu, gelu, tanh, sigmoid
+  hidden_sizes: [512, 256, 128, 64]
+  dropout_rates: [0.2, 0.3, 0.4, 0.5]
+  activation: "swish"  # Options: relu, leaky_relu, elu, gelu, swish, tanh, sigmoid
   use_batch_norm: true
+  use_layer_norm: false
+  use_residual: true
   output_size: 1
 
-# Training Configuration
+# Enhanced Training Configuration
 training:
-  batch_size: 64
-  epochs: 100
-  learning_rate: 0.001
-  weight_decay: 0.0001
-  optimizer: "adam"  # Options: adam, sgd, rmsprop
+  batch_size: 32  # Smaller batch size for better generalization
+  epochs: 150
+  learning_rate: 0.0005  # Lower learning rate for better convergence
+  weight_decay: 0.0005  # Increased regularization
+  optimizer: "adamw"  # Options: adam, adamw, sgd, rmsprop
   
-  # Learning Rate Scheduler
+  # Enhanced Loss Function
+  loss:
+    type: "label_smoothing"  # Options: bce, label_smoothing, focal
+    smoothing: 0.1  # For label smoothing
+    alpha: 1.0      # For focal loss
+    gamma: 2.0      # For focal loss
+  
+  # Gradient Clipping
+  gradient_clipping:
+    enabled: true
+    max_norm: 1.0
+  
+  # Enhanced Learning Rate Scheduler
   scheduler:
-    type: "step"  # Options: step, cosine, exponential, plateau
-    step_size: 20
-    gamma: 0.5
-    patience: 10  # For plateau scheduler
-    factor: 0.5   # For plateau scheduler
+    type: "cosine"  # Options: step, cosine, exponential, plateau
+    step_size: 30
+    gamma: 0.7
+    patience: 8  # For plateau scheduler
+    factor: 0.6   # For plateau scheduler
   
-  # Early Stopping
+  # Enhanced Early Stopping
   early_stopping:
-    patience: 15
-    min_delta: 0.0001
+    patience: 20
+    min_delta: 0.00005
     restore_best_weights: true
 
 # ClearML Configuration

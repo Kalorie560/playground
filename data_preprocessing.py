@@ -115,7 +115,7 @@ class SpaceshipDataProcessor:
         return df
     
     def engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Perform feature engineering on the dataset."""
+        """Perform advanced feature engineering on the dataset."""
         df = df.copy()
         
         # Extract cabin information
@@ -125,33 +125,83 @@ class SpaceshipDataProcessor:
             df['Deck'] = cabin_parts[0].fillna('Unknown')
             df['Cabin_num'] = pd.to_numeric(cabin_parts[1], errors='coerce').fillna(0)
             df['Side'] = cabin_parts[2].fillna('Unknown')
+            
+            # Advanced cabin features
+            df['Cabin_num_binned'] = pd.cut(df['Cabin_num'], bins=10, labels=False).fillna(0)
+            df['Is_premium_deck'] = (df['Deck'].isin(['A', 'B', 'T'])).astype(int)
+            df['Is_port_side'] = (df['Side'] == 'P').astype(int)
+            
             df.drop('Cabin', axis=1, inplace=True)
         
         # Extract family information from PassengerId
         if 'PassengerId' in df.columns:
             df['Group'] = df['PassengerId'].str.split('_').str[0]
             df['Group_size'] = df.groupby('Group')['Group'].transform('count')
+            df['Person_in_group'] = df['PassengerId'].str.split('_').str[1].astype(int)
             df.drop('PassengerId', axis=1, inplace=True)
         
-        # Create family size categories
+        # Enhanced family size features
         if 'Group_size' in df.columns:
             df['Is_solo'] = (df['Group_size'] == 1).astype(int)
             df['Is_small_group'] = ((df['Group_size'] >= 2) & (df['Group_size'] <= 4)).astype(int)
             df['Is_large_group'] = (df['Group_size'] > 4).astype(int)
+            df['Group_size_log'] = np.log1p(df['Group_size'])
         
-        # Total spending
+        # Advanced spending analysis
         spending_cols = ['RoomService', 'FoodCourt', 'ShoppingMall', 'Spa', 'VRDeck']
         existing_spending_cols = [col for col in spending_cols if col in df.columns]
         if existing_spending_cols:
             df['Total_spending'] = df[existing_spending_cols].sum(axis=1)
             df['Has_spending'] = (df['Total_spending'] > 0).astype(int)
+            df['Spending_per_service'] = df['Total_spending'] / len(existing_spending_cols)
+            df['Total_spending_log'] = np.log1p(df['Total_spending'])
+            
+            # Spending ratios
+            if 'Total_spending' in df.columns and df['Total_spending'].sum() > 0:
+                for col in existing_spending_cols:
+                    df[f'{col}_ratio'] = df[col] / (df['Total_spending'] + 1e-8)
+            
+            # High spender features
+            spending_threshold = df['Total_spending'].quantile(0.75) if len(df) > 0 else 1000
+            df['Is_high_spender'] = (df['Total_spending'] > spending_threshold).astype(int)
+            
+            # Service preferences
+            df['Luxury_spending'] = df[['Spa', 'VRDeck']].sum(axis=1) if 'Spa' in df.columns and 'VRDeck' in df.columns else 0
+            df['Basic_spending'] = df[['RoomService', 'FoodCourt']].sum(axis=1) if 'RoomService' in df.columns and 'FoodCourt' in df.columns else 0
         
-        # Age groups
+        # Enhanced age features
         if 'Age' in df.columns:
             df['Age_group'] = pd.cut(df['Age'], 
-                                   bins=[0, 12, 18, 35, 60, 100], 
-                                   labels=['Child', 'Teen', 'Young_Adult', 'Adult', 'Senior'])
+                                   bins=[0, 12, 18, 25, 35, 50, 65, 100], 
+                                   labels=['Child', 'Teen', 'Young', 'Adult', 'Middle_age', 'Senior', 'Elder'])
             df['Age_group'] = df['Age_group'].astype(str)
+            
+            # Age polynomials
+            df['Age_squared'] = df['Age'] ** 2
+            df['Age_cubed'] = df['Age'] ** 3
+            df['Age_log'] = np.log1p(df['Age'])
+            
+            # Age-related patterns
+            df['Is_minor'] = (df['Age'] < 18).astype(int)
+            df['Is_senior'] = (df['Age'] >= 60).astype(int)
+        
+        # CryoSleep interaction features
+        if 'CryoSleep' in df.columns:
+            if 'Total_spending' in df.columns:
+                df['CryoSleep_spending_interaction'] = df['CryoSleep'].astype(int) * df['Total_spending']
+            if 'VIP' in df.columns:
+                df['CryoSleep_VIP_interaction'] = df['CryoSleep'].astype(int) * df['VIP'].astype(int)
+        
+        # VIP interaction features
+        if 'VIP' in df.columns:
+            if 'Total_spending' in df.columns:
+                df['VIP_spending_interaction'] = df['VIP'].astype(int) * df['Total_spending']
+            if 'Age' in df.columns:
+                df['VIP_age_interaction'] = df['VIP'].astype(int) * df['Age']
+        
+        # Planet-destination interactions
+        if 'HomePlanet' in df.columns and 'Destination' in df.columns:
+            df['Planet_destination'] = df['HomePlanet'].astype(str) + '_to_' + df['Destination'].astype(str)
         
         # Drop name as it's not useful for prediction
         if 'Name' in df.columns:
@@ -167,7 +217,7 @@ class SpaceshipDataProcessor:
         """Encode categorical features."""
         df = df.copy()
         
-        categorical_cols = ['HomePlanet', 'Destination', 'Deck', 'Side', 'Age_group']
+        categorical_cols = ['HomePlanet', 'Destination', 'Deck', 'Side', 'Age_group', 'Planet_destination']
         
         for col in categorical_cols:
             if col in df.columns:
@@ -203,9 +253,18 @@ class SpaceshipDataProcessor:
         """Scale numerical features."""
         df = df.copy()
         
-        # Features to scale
-        features_to_scale = ['Age', 'RoomService', 'FoodCourt', 'ShoppingMall', 
-                           'Spa', 'VRDeck', 'Cabin_num', 'Group_size', 'Total_spending']
+        # Features to scale - including new engineered features
+        features_to_scale = [
+            'Age', 'RoomService', 'FoodCourt', 'ShoppingMall', 'Spa', 'VRDeck',
+            'Cabin_num', 'Group_size', 'Total_spending', 'Spending_per_service',
+            'Total_spending_log', 'Age_squared', 'Age_cubed', 'Age_log',
+            'Group_size_log', 'Person_in_group', 'Luxury_spending', 'Basic_spending',
+            'CryoSleep_spending_interaction', 'VIP_spending_interaction', 'VIP_age_interaction'
+        ]
+        
+        # Add ratio features dynamically
+        ratio_features = [col for col in df.columns if col.endswith('_ratio')]
+        features_to_scale.extend(ratio_features)
         
         existing_features = [col for col in features_to_scale if col in df.columns]
         
