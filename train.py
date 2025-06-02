@@ -16,6 +16,7 @@ import logging
 from tqdm import tqdm
 import os
 import warnings
+import math
 
 # Import our modules
 from data_preprocessing import SpaceshipDataProcessor
@@ -34,6 +35,39 @@ except ImportError:
 warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class LabelSmoothingBCELoss(nn.Module):
+    """Binary Cross Entropy with Label Smoothing."""
+    
+    def __init__(self, smoothing: float = 0.1):
+        super(LabelSmoothingBCELoss, self).__init__()
+        self.smoothing = smoothing
+        
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Apply label smoothing to binary classification."""
+        # Apply label smoothing
+        target_smooth = target * (1 - self.smoothing) + 0.5 * self.smoothing
+        
+        # Calculate BCE loss
+        loss = nn.functional.binary_cross_entropy_with_logits(pred, target_smooth)
+        return loss
+
+
+class FocalLoss(nn.Module):
+    """Focal Loss for addressing class imbalance."""
+    
+    def __init__(self, alpha: float = 1.0, gamma: float = 2.0):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Calculate focal loss."""
+        bce_loss = nn.functional.binary_cross_entropy_with_logits(pred, target, reduction='none')
+        pt = torch.exp(-bce_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * bce_loss
+        return focal_loss.mean()
 
 
 class SpaceshipTrainer:
@@ -279,23 +313,45 @@ class SpaceshipTrainer:
         self.model = create_model(input_size, self.config)
         self.model.to(self.device)
         
-        # Setup optimizer
+        # Setup optimizer with enhanced options
         optimizer_config = self.config['training']
-        if optimizer_config['optimizer'].lower() == 'adam':
+        optimizer_name = optimizer_config['optimizer'].lower()
+        
+        if optimizer_name == 'adam':
             self.optimizer = optim.Adam(
                 self.model.parameters(),
                 lr=optimizer_config['learning_rate'],
-                weight_decay=optimizer_config['weight_decay']
+                weight_decay=optimizer_config['weight_decay'],
+                betas=(0.9, 0.999),
+                eps=1e-8
             )
-        elif optimizer_config['optimizer'].lower() == 'sgd':
+        elif optimizer_name == 'adamw':
+            self.optimizer = optim.AdamW(
+                self.model.parameters(),
+                lr=optimizer_config['learning_rate'],
+                weight_decay=optimizer_config['weight_decay'],
+                betas=(0.9, 0.999),
+                eps=1e-8
+            )
+        elif optimizer_name == 'sgd':
             self.optimizer = optim.SGD(
                 self.model.parameters(),
                 lr=optimizer_config['learning_rate'],
                 weight_decay=optimizer_config['weight_decay'],
-                momentum=0.9
+                momentum=0.9,
+                nesterov=True
             )
-        elif optimizer_config['optimizer'].lower() == 'rmsprop':
+        elif optimizer_name == 'rmsprop':
             self.optimizer = optim.RMSprop(
+                self.model.parameters(),
+                lr=optimizer_config['learning_rate'],
+                weight_decay=optimizer_config['weight_decay'],
+                alpha=0.99,
+                eps=1e-8
+            )
+        else:
+            # Default to AdamW
+            self.optimizer = optim.AdamW(
                 self.model.parameters(),
                 lr=optimizer_config['learning_rate'],
                 weight_decay=optimizer_config['weight_decay']
@@ -355,10 +411,20 @@ class SpaceshipTrainer:
                     self.clearml_logger.report_text(f"model/{key}", str(value))
     
     def train_epoch(self, train_loader: DataLoader) -> float:
-        """Train for one epoch."""
+        """Enhanced training for one epoch with improved loss and regularization."""
         self.model.train()
         total_loss = 0.0
-        criterion = nn.BCEWithLogitsLoss()
+        
+        # Enhanced loss function selection
+        loss_config = self.config['training'].get('loss', {})
+        loss_type = loss_config.get('type', 'bce')
+        
+        if loss_type == 'label_smoothing':
+            criterion = LabelSmoothingBCELoss(smoothing=loss_config.get('smoothing', 0.1))
+        elif loss_type == 'focal':
+            criterion = FocalLoss(alpha=loss_config.get('alpha', 1.0), gamma=loss_config.get('gamma', 2.0))
+        else:
+            criterion = nn.BCEWithLogitsLoss()
         
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(self.device), target.to(self.device).float().unsqueeze(1)
@@ -366,6 +432,12 @@ class SpaceshipTrainer:
             self.optimizer.zero_grad()
             output = self.model(data)
             loss = criterion(output, target)
+            
+            # Gradient clipping
+            if self.config['training'].get('gradient_clipping', {}).get('enabled', False):
+                max_norm = self.config['training']['gradient_clipping'].get('max_norm', 1.0)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm)
+            
             loss.backward()
             self.optimizer.step()
             
