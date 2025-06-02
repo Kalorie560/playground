@@ -1,18 +1,19 @@
 # Spaceship Titanic Deep Learning Solution
 
-A comprehensive deep learning solution for the Kaggle Spaceship Titanic competition, featuring modular architecture, ClearML experiment tracking, and configurable hyperparameters.
+A comprehensive deep learning solution for the Kaggle Spaceship Titanic competition, featuring modular architecture, ClearML experiment tracking, configurable hyperparameters, and an interactive web application.
 
-## Features
+## ✨ Features
 
 - **Modular Design**: Well-organized code structure with separate modules for data processing, model architecture, training, and prediction
 - **Deep Learning**: PyTorch-based neural network with configurable architecture
+- **Interactive Web App**: Streamlit-based web interface for real-time predictions
 - **Experiment Tracking**: ClearML integration for comprehensive experiment logging
 - **Configuration Management**: YAML-based configuration system for easy hyperparameter tuning
 - **Feature Engineering**: Advanced preprocessing including cabin information extraction, family size features, and spending patterns
 - **Training Pipeline**: Complete training loop with early stopping, learning rate scheduling, and comprehensive metrics
 - **Reproducibility**: Seed management and deterministic training for reproducible results
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 ├── config.yaml                 # Configuration file for all hyperparameters
@@ -20,11 +21,17 @@ A comprehensive deep learning solution for the Kaggle Spaceship Titanic competit
 ├── model.py                    # Neural network architecture and utilities
 ├── train.py                    # Training pipeline with ClearML integration
 ├── predict.py                  # Test set prediction and submission generation
+├── app.py                      # Streamlit web application for interactive predictions
+├── run_app.py                  # Python script to launch the web application
+├── run_app.sh                  # Bash script to launch the web application
+├── setup_clearml.py            # Interactive ClearML setup helper
 ├── requirements.txt            # Python dependencies
-└── README_SPACESHIP_TITANIC.md # This documentation
+├── README.md                   # Main documentation (English)
+├── README_ja.md                # Japanese documentation
+└── WEB_APP_README.md           # Detailed web application documentation
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Installation
 
@@ -40,19 +47,62 @@ Place your Kaggle competition data files in the project directory:
 
 **Note**: If data files are not present, the solution will create sample data for demonstration purposes.
 
-### 3. Training
+### 3. Usage Options
 
+#### Option A: Interactive Web Application (Recommended)
+
+Launch the web interface for easy predictions:
+
+```bash
+python run_app.py
+```
+
+Or using the bash script:
+```bash
+./run_app.sh
+```
+
+Or directly with Streamlit:
+```bash
+streamlit run app.py
+```
+
+The web app will be available at: http://localhost:8501
+
+#### Option B: Command Line Training and Prediction
+
+**Training:**
 ```bash
 python train.py
 ```
 
-### 4. Prediction
-
+**Prediction:**
 ```bash
 python predict.py
 ```
 
-## Configuration
+## 🌐 Web Application
+
+### Features
+- **User-Friendly Interface**: Intuitive form-based input with Japanese language support
+- **Real-Time Predictions**: Instant predictions based on input features
+- **Detailed Guidance**: Help text and explanations for each feature
+- **Visualized Results**: Probability display with detailed metrics
+- **Input Validation**: Automatic data validation and preprocessing
+
+### Input Features
+- **Personal Information**: Home planet, age, VIP status, cryo-sleep
+- **Cabin Details**: Deck level, cabin number, port/starboard side
+- **Destination**: Final destination planet
+- **Service Spending**: Room service, food court, shopping mall, spa, VR deck
+
+### Output
+- **Transportation Probability**: Model confidence in transportation prediction
+- **Detailed Metrics**: Breakdown of prediction confidence
+- **Total Spending**: Summary of all service expenditures
+- **Input Summary**: Review of all entered data
+
+## ⚙️ Configuration
 
 All hyperparameters and settings are managed through `config.yaml`. Key sections include:
 
@@ -84,7 +134,7 @@ All hyperparameters and settings are managed through `config.yaml`. Key sections
 - Task name: `Neural_Network_Classifier`
 - Automatic framework connection
 
-## Data Preprocessing Features
+## 🔧 Data Preprocessing Features
 
 ### Missing Value Handling
 - Numerical features: Filled with median values
@@ -105,7 +155,7 @@ All hyperparameters and settings are managed through `config.yaml`. Key sections
 - `Total_spending`, `Has_spending` from amenity spending
 - `Age_group` from `Age`
 
-## Model Architecture
+## 🧠 Model Architecture
 
 ### Neural Network Design
 - **Input Layer**: Automatically sized based on preprocessed features
@@ -122,7 +172,7 @@ All hyperparameters and settings are managed through `config.yaml`. Key sections
 - **Early Stopping**: Prevents overfitting with configurable patience
 - **Model Checkpointing**: Automatic saving of best model
 
-## ClearML Experiment Tracking
+## 📊 ClearML Experiment Tracking
 
 The solution integrates with ClearML for comprehensive experiment tracking:
 
@@ -179,7 +229,7 @@ clearml:
 - Configuration files
 - Training history
 
-## Usage Examples
+## 📋 Usage Examples
 
 ### Custom Configuration
 
@@ -231,7 +281,25 @@ trainer = SpaceshipTrainer('config.yaml')
 history, metrics = trainer.train()
 ```
 
-## Performance Monitoring
+### Web Application Integration
+
+```python
+from app import SpaceshipWebPredictor
+
+# Create predictor instance
+predictor = SpaceshipWebPredictor()
+
+# Make prediction from user inputs
+user_inputs = {
+    'home_planet': 'Earth',
+    'age': 25,
+    'vip': False,
+    # ... other features
+}
+probability = predictor.predict(user_inputs)
+```
+
+## 📈 Performance Monitoring
 
 ### Validation Metrics
 - **Accuracy**: Overall classification accuracy
@@ -246,7 +314,7 @@ history, metrics = trainer.train()
 - Early stopping based on validation loss
 - Automatic best model saving
 
-## Advanced Features
+## 🔧 Advanced Features
 
 ### Reproducibility
 - Configurable random seeds
@@ -263,7 +331,7 @@ history, metrics = trainer.train()
 - ClearML connection fallbacks
 - Comprehensive logging and error messages
 
-## Output Files
+## 📁 Output Files
 
 ### Generated Files
 - `best_model.pth`: Trained model checkpoint with metadata
@@ -278,7 +346,7 @@ PassengerId,Transported
 ...
 ```
 
-## Tips for Optimization
+## 💡 Tips for Optimization
 
 ### Hyperparameter Tuning
 1. Adjust learning rate (start with 0.001, try 0.0001-0.01)
@@ -299,7 +367,7 @@ PassengerId,Transported
 3. Try different loss functions
 4. Experiment with learning rate scheduling
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
 
@@ -310,7 +378,7 @@ PassengerId,Transported
 **ClearML Connection Issues**:
 - Run `python setup_clearml.py` for interactive setup assistance
 - Check ClearML server configuration
-- Ensure proper API credentials (see ClearML Setup section below)
+- Ensure proper API credentials (see ClearML Setup section above)
 - Training will continue without ClearML if connection fails
 
 **Data Loading Errors**:
@@ -318,15 +386,34 @@ PassengerId,Transported
 - Check file formats and column names
 - Sample data will be generated if files are missing
 
-## Requirements
+**Web Application Issues**:
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- Check if port 8501 is available
+- Try alternative ports: `streamlit run app.py --server.port 8502`
+- Review application logs for detailed error information
+
+## 📋 Requirements
 
 - Python 3.7+
 - PyTorch 2.0+
+- Streamlit 1.28+
 - pandas 1.5+
 - scikit-learn 1.3+
 - ClearML 1.14+ (optional)
 - PyYAML 6.0+
 
-## License
+## 📄 License
 
 This solution is provided for educational and competition purposes.
+
+## 🙏 Acknowledgments
+
+- Kaggle Spaceship Titanic Competition
+- PyTorch development team
+- Streamlit community
+- ClearML team
+- Open source machine learning community
+
+---
+
+**🚀 Happy Predicting!**
